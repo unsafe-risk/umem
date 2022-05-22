@@ -1,9 +1,24 @@
 package umem
 
-import "unsafe"
+import (
+	_ "runtime"
+	"unsafe"
+)
 
-//go:linkname SYSAllocOS runtime.sysAllocOS
-func SYSAllocOS(n uintptr) unsafe.Pointer
+var memstat sysMemStat
 
-//go:linkname SYSFreeOS runtime.sysFreeOS
-func SYSFreeOS(v unsafe.Pointer, n uintptr)
+func SYSAllocOS(n uintptr) unsafe.Pointer {
+	return SYSAlloc_runtime(n, &memstat)
+}
+
+func SYSFreeOS(v unsafe.Pointer, n uintptr) {
+	SYSFree_runtime(v, n, &memstat)
+}
+
+//go:linkname SYSAlloc_runtime runtime.sysAlloc
+//go:linkname SYSFree_runtime runtime.sysFree
+
+type sysMemStat uint64
+
+func SYSAlloc_runtime(n uintptr, sysStat *sysMemStat) unsafe.Pointer
+func SYSFree_runtime(v unsafe.Pointer, n uintptr, sysStat *sysMemStat)
