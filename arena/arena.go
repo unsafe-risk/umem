@@ -138,6 +138,12 @@ func (r *Arena) NewString(b []byte) string {
 	return *(*string)(unsafe.Pointer(&s))
 }
 
+func (r *Arena) HeapString(b string) string {
+	s := r.NewBytes(uintptr(len(b)))
+	copy(s, b)
+	return *(*string)(unsafe.Pointer(&s))
+}
+
 func (r *Arena) Allocate(size uintptr) unsafe.Pointer {
 	return unsafe.Pointer(r.allocate(size))
 }
