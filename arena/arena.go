@@ -1,0 +1,155 @@
+package arena
+
+import (
+	"reflect"
+	"unsafe"
+
+	sysmem "github.com/unsafe-risk/umem/internal/sysmem"
+)
+
+// This Implementation is based on the proposal in the following url: https://github.com/golang/go/issues/51317
+
+// Thread-unsafe.
+type Arena struct {
+	// The start address of the region.
+	head uintptr
+	// Tail of the region.
+	tail uintptr
+}
+
+// Page Structure
+/*
+	|  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |
+	|-----|-----|-----|-----|-----|-----|-----|-----|
+	|  page size            |  page head            |
+	|-----|-----|-----|-----|-----|-----|-----|-----|
+	|  Next Page Ptr                                |
+	|-----|-----|-----|-----|-----|-----|-----|-----|
+	|                                               |
+	|                                               |
+	|                                               |
+	|                      Data                     |
+	|                                               |
+	|                                               |
+	|                                               |
+	|-----|-----|-----|-----|-----|-----|-----|-----|
+*/
+
+const defaultPageSize = 4096 - 16
+
+func (r *Arena) newPage(size uintptr) {
+	sptr := sysmem.SYSAllocOS(size + 16)
+	pagesize := (*uint32)(unsafe.Pointer(sptr))
+	pagehead := (*uint32)(unsafe.Pointer(uintptr(sptr) + 4))
+	nextpage := (*uint64)(unsafe.Pointer(uintptr(sptr) + 8))
+
+	*pagesize = uint32(size)
+	*pagehead = 0
+	*nextpage = 0
+
+	if r.tail != 0 {
+		// Add to the tail of the region.
+		tailNextPage := (*uint64)(unsafe.Pointer(r.tail + 8))
+		if *tailNextPage != 0 {
+			*nextpage = *tailNextPage
+		}
+		*tailNextPage = uint64(uintptr(sptr))
+	}
+	r.tail = uintptr(sptr)
+	if r.head == 0 {
+		r.head = uintptr(sptr)
+	}
+}
+
+func (r *Arena) Reset() {
+	for r.head != 0 {
+		pagehead := (*uint32)(unsafe.Pointer(r.head + 4))
+		nextpage := (*uint64)(unsafe.Pointer(r.head + 8))
+		*pagehead = 0
+		r.head = uintptr(*nextpage)
+	}
+	r.tail = r.head
+}
+
+func (r *Arena) Free() {
+	for r.head != 0 {
+		pagesize := (*uint32)(unsafe.Pointer(r.head))
+		nextpage := (*uint64)(unsafe.Pointer(r.head + 8))
+		nexthead := uintptr(*nextpage)
+		sysmem.SYSFreeOS(unsafe.Pointer(r.head), uintptr(*pagesize+16))
+		r.head = nexthead
+	}
+}
+
+func (r *Arena) allocate(size uintptr) uintptr {
+	if r.tail == 0 {
+		r.newPage(size)
+	}
+
+	pagesize := (*uint32)(unsafe.Pointer(r.tail))
+	pagehead := (*uint32)(unsafe.Pointer(r.tail + 4))
+	if uintptr(*pagesize-*pagehead) < size {
+		if size > defaultPageSize {
+			r.newPage(size)
+		} else {
+			r.newPage(defaultPageSize)
+		}
+		pagehead = (*uint32)(unsafe.Pointer(r.tail))
+	}
+
+	data := r.tail + 16 + uintptr(*pagehead)
+	*pagehead += uint32(size)
+	return data
+}
+
+func (r *Arena) NewBytes(size uintptr) []byte {
+	sh := reflect.SliceHeader{
+		Data: r.allocate(size),
+		Len:  int(size),
+		Cap:  int(size),
+	}
+	return *(*[]byte)(unsafe.Pointer(&sh))
+}
+
+func (r *Arena) NewString(b []byte) string {
+	s := r.NewBytes(uintptr(len(b)))
+	copy(s, b)
+	return *(*string)(unsafe.Pointer(&s))
+}
+
+func (r *Arena) Allocate(size uintptr) unsafe.Pointer {
+	return unsafe.Pointer(r.allocate(size))
+}
+
+func NewOf[T any](r *Arena) *T {
+	var zero T
+	p := (*T)(r.Allocate(unsafe.Sizeof(zero)))
+	*p = zero
+	return p
+}
+
+func NewOfUninitialized[T any](r *Arena) *T {
+	var zero T
+	return (*T)(r.Allocate(unsafe.Sizeof(zero)))
+}
+
+func NewSliceOfUninitialized[T any](r *Arena, len int) []T {
+	var zero T
+	p := r.Allocate(unsafe.Sizeof(zero) * uintptr(len))
+	sh := reflect.SliceHeader{
+		Data: uintptr(p),
+		Len:  len,
+		Cap:  len,
+	}
+	v := *(*[]T)(unsafe.Pointer(&sh))
+	return v
+}
+
+func NewSliceOf[T any](r *Arena, len int) []T {
+	var zero T
+	v := NewSliceOfUninitialized[T](r, len)
+	for i := 0; i < len; i++ {
+		v[i] = zero
+	}
+	return v
+}
