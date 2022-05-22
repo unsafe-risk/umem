@@ -42,6 +42,7 @@ func New() *Arena {
 const defaultPageSize = 4096 - 16
 
 func (r *Arena) newPage(size uintptr) {
+	// println("Allocating new page", size)
 	sptr := sysmem.SYSAllocOS(size + 16)
 	pagesize := (*uint32)(unsafe.Pointer(sptr))
 	pagehead := (*uint32)(unsafe.Pointer(uintptr(sptr) + 4))
@@ -63,16 +64,18 @@ func (r *Arena) newPage(size uintptr) {
 	if r.head == 0 {
 		r.head = uintptr(sptr)
 	}
+	// println("New page allocated", size, sptr)
 }
 
 func (r *Arena) Reset() {
+	r.tail = r.head
 	for r.head != 0 {
 		pagehead := (*uint32)(unsafe.Pointer(r.head + 4))
 		nextpage := (*uint64)(unsafe.Pointer(r.head + 8))
 		*pagehead = 0
 		r.head = uintptr(*nextpage)
 	}
-	r.tail = r.head
+	r.head = r.tail
 }
 
 func (r *Arena) Free() {
@@ -83,22 +86,36 @@ func (r *Arena) Free() {
 		sysmem.SYSFreeOS(unsafe.Pointer(r.head), uintptr(*pagesize+16))
 		r.head = nexthead
 	}
+	r.tail = 0
 }
 
 func (r *Arena) allocate(size uintptr) uintptr {
+retry:
 	if r.tail == 0 {
-		r.newPage(size)
-	}
-
-	pagesize := (*uint32)(unsafe.Pointer(r.tail))
-	pagehead := (*uint32)(unsafe.Pointer(r.tail + 4))
-	if uintptr(*pagesize-*pagehead) < size {
+		// println("tail is 0, allocating new page")
 		if size > defaultPageSize {
 			r.newPage(size)
 		} else {
 			r.newPage(defaultPageSize)
 		}
-		pagehead = (*uint32)(unsafe.Pointer(r.tail))
+	}
+
+	pagesize := (*uint32)(unsafe.Pointer(r.tail))
+	pagehead := (*uint32)(unsafe.Pointer(r.tail + 4))
+	nextpage := (*uint64)(unsafe.Pointer(r.tail + 8))
+	if uintptr(*pagesize-*pagehead) < size {
+		if *nextpage != 0 {
+			r.tail = uintptr(*nextpage)
+			goto retry
+		}
+		if size > defaultPageSize {
+			r.newPage(size)
+		} else {
+			r.newPage(defaultPageSize)
+		}
+		pagesize = (*uint32)(unsafe.Pointer(r.tail))
+		pagehead = (*uint32)(unsafe.Pointer(r.tail + 4))
+		nextpage = (*uint64)(unsafe.Pointer(r.tail + 8))
 	}
 
 	data := r.tail + 16 + uintptr(*pagehead)
