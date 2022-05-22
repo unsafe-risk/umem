@@ -2,6 +2,7 @@ package arena
 
 import (
 	"reflect"
+	"runtime"
 	"unsafe"
 
 	sysmem "github.com/unsafe-risk/umem/internal/sysmem"
@@ -17,8 +18,19 @@ type Arena struct {
 	tail uintptr
 }
 
+func NewFinalizer() *Arena {
+	a := &Arena{}
+	runtime.SetFinalizer(a, arenaFinalizer)
+	return a
+}
+
 func New() *Arena {
-	return &Arena{}
+	a := &Arena{}
+	return a
+}
+
+func arenaFinalizer(a *Arena) {
+	a.Free()
 }
 
 // Page Structure
