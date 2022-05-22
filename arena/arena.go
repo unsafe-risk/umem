@@ -9,7 +9,7 @@ import (
 
 // This Implementation is based on the proposal in the following url: https://github.com/golang/go/issues/51317
 
-// Thread-unsafe.
+// Thread-unsafe Allocation Arena.
 type Arena struct {
 	// The start address of the region.
 	head uintptr
