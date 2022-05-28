@@ -51,7 +51,7 @@ func arenaFinalizer(a *Arena) {
 	|-----|-----|-----|-----|-----|-----|-----|-----|
 */
 
-const defaultPageSize = 4096 - 16
+const defaultPageSize = 4096*4 - 16
 
 func (r *Arena) newPage(size uintptr) {
 	// println("Allocating new page", size)
