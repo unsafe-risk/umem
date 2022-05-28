@@ -1,6 +1,7 @@
 package arena
 
 import (
+	"os"
 	"reflect"
 	"runtime"
 	"unsafe"
@@ -51,7 +52,7 @@ func arenaFinalizer(a *Arena) {
 	|-----|-----|-----|-----|-----|-----|-----|-----|
 */
 
-const defaultPageSize = 4096*4 - 16
+var defaultPageSize = uintptr(os.Getpagesize()*4 - 16) // pagesize*4
 
 func (r *Arena) newPage(size uintptr) {
 	// println("Allocating new page", size)
