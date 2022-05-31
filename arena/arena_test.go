@@ -25,8 +25,8 @@ func BenchmarkAllocateUmemUninitializedPerson(b *testing.B) {
 			p.number = i
 			p.uuid = "12345"
 		}
+		r.Free()
 	}
-	r.Free()
 }
 
 func BenchmarkAllocateUmemPerson(b *testing.B) {
@@ -40,8 +40,8 @@ func BenchmarkAllocateUmemPerson(b *testing.B) {
 			p.number = i
 			p.uuid = "12345"
 		}
+		r.Free()
 	}
-	r.Free()
 }
 
 //go:noinline
@@ -51,6 +51,7 @@ func StdNewPerson() *Person {
 }
 
 func BenchmarkAllocateStdNew(b *testing.B) {
+	var ps []*Person = make([]*Person, nAlloc)
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < nAlloc; j++ {
 			p := StdNewPerson()
@@ -59,6 +60,7 @@ func BenchmarkAllocateStdNew(b *testing.B) {
 			p.Address = "London"
 			p.number = i
 			p.uuid = "12345"
+			ps[j] = p
 		}
 	}
 }

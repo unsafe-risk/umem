@@ -52,7 +52,7 @@ func arenaFinalizer(a *Arena) {
 	|-----|-----|-----|-----|-----|-----|-----|-----|
 */
 
-var defaultPageSize = uintptr(os.Getpagesize()*4 - 16) // pagesize*4
+var defaultPageSize = uintptr(os.Getpagesize()*16 - 16)
 
 func (r *Arena) newPage(size uintptr) {
 	// println("Allocating new page", size)
