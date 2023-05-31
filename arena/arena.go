@@ -102,7 +102,10 @@ func (r *Arena) Free() {
 	r.tail = 0
 }
 
+const align = unsafe.Alignof(uintptr(0))
+
 func (r *Arena) allocate(size uintptr) uintptr {
+	size = ((size + align - 1) / align) * align
 retry:
 	if r.tail == 0 {
 		// println("tail is 0, allocating new page")

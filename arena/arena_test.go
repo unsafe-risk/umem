@@ -1,8 +1,31 @@
 package arena
 
 import (
+	"fmt"
+	"sync/atomic"
 	"testing"
 )
+
+func TestUmemAtomicTest(t *testing.T) {
+	r := New()
+	p := NewOfUninitialized[Person](r)
+	p.Name = "John"
+	p.Age = 42
+	p.Address = "London"
+	p.number = 123
+	p.uuid = "12345"
+
+	_ = NewOfUninitialized[byte](r)
+	u64p := NewOfUninitialized[uint64](r)
+	*u64p = 1234567890
+	fmt.Printf("u64p: %p\n", u64p)
+	atomic.AddUint64(u64p, 1)
+	if *u64p != 1234567891 {
+		t.Errorf("Expected 1234567891, got %d", *u64p)
+		t.FailNow()
+	}
+	r.Free()
+}
 
 type Person struct {
 	Name    string
