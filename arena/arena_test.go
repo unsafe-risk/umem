@@ -24,6 +24,11 @@ func TestUmemAtomicTest(t *testing.T) {
 		t.Errorf("Expected 1234567891, got %d", *u64p)
 		t.FailNow()
 	}
+
+	if !atomic.CompareAndSwapUint64(u64p, 1234567891, 1234567892) {
+		t.Errorf("Expected 1234567891 to be swapped to 1234567892, but it wasn't")
+		t.FailNow()
+	}
 	r.Free()
 }
 
